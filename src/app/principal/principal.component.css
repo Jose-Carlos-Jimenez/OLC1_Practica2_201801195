@@ -1,0 +1,12 @@
+/* active tab */
+::ng-deep .mat-tab-list .mat-tab-labels .mat-tab-label-active {
+color:black;
+}
+
+/* ink bar */
+.mat-ink-bar {
+color:black;
+}
+
+::ng-deep .mat-ink-bar {
+  background-color:#ee2925 !important;}

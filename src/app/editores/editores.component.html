@@ -1,0 +1,82 @@
+<div class="row">
+  <div class="col">
+    <div class="code-editor" style="max-width: 36.5rem; min-width: 36.5rem;" #Receptor></div>
+  </div>
+  <div class="col">
+    <div class="code-editor" style="max-width: 36.5rem; min-width: 36.5rem;" #Emisor></div>
+  </div>
+</div>
+<div class="row">
+  <p></p>
+  <p></p>
+</div>
+<div class="row justify-content-xl-start">
+  <div class="col justify-content-center">
+    <div class="card border-primary mb-3" style="max-width: 36.5rem; min-width: 36.5rem;">
+      <div class="card-header">Tabla de simbolos</div>
+      <div class="card-body">
+        <table class="table table-active">
+          <thead>
+            <tr>
+              <th scope="col">Nombre</th>
+              <th scope="col">Tipo</th>
+              <th scope="col">Linea</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="table-active">
+              <th scope="row">a</th>
+              <td>int</td>
+              <td>12</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col" >
+    <mat-tab-group>
+      <mat-tab label="HTML">
+        <label for="exampleTextarea"></label>
+        <textarea class="form-control" id="exampleTextarea" rows="5" disabled></textarea>
+      </mat-tab>
+      <mat-tab label="JSON">
+        <label for="exampleTextarea"></label>
+        <textarea class="form-control" id="exampleTextarea" rows="5" disabled></textarea>
+      </mat-tab>
+    </mat-tab-group>
+  </div>
+</div>
+<div class="row justify-content-center">
+  <div class="col">
+    <div class="row justify-content-center">
+      <button mat-fab color="warn" >
+        <mat-icon>
+          code
+        </mat-icon>
+      </button>
+      &nbsp;
+      &nbsp;
+      <button mat-fab color="primary" (click)="guardar()">
+        <mat-icon>
+          save
+        </mat-icon>
+      </button>
+      &nbsp;
+      &nbsp;
+      <button mat-fab >
+        <mat-icon>
+          cloud_download
+        </mat-icon>
+      </button>
+      &nbsp;
+      &nbsp;
+      <button mat-fab color="success" type="button">
+        <mat-icon>
+          donut_small
+        </mat-icon>
+      </button>
+    </div>
+    <p></p>
+  </div>
+</div>
