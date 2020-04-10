@@ -1,4 +1,4 @@
-import { Component, ViewChild, ElementRef, AfterViewInit, Input, ɵConsole } from '@angular/core';
+import { Component, ViewChild, ElementRef, AfterViewInit, Input } from '@angular/core';
 import * as ace from 'ace-builds';
 import 'ace-builds/src-noconflict/ace.js';
 import 'ace-builds/src-noconflict/mode-csharp';
@@ -7,17 +7,22 @@ import 'ace-builds/src-noconflict/theme-xcode';
 import 'ace-builds/src-noconflict/theme-terminal';
 import 'ace-builds/src-noconflict/ext-language_tools';
 import 'ace-builds/src-noconflict/ext-beautify';
-import 'ace-builds/src-noconflict/mode-csharp';
+import 'ace-builds/src-noconflict/mode-html';
+
 
 import { Documento } from '../objetos/documento';
 import { Token, Tipo } from '../objetos/token';
+import { Variable } from '../objetos/variable';
 import { Error } from '../objetos/error';
 import { saveAs } from 'file-saver';
+import { stringify } from 'querystring';
+import { MatTabsModule } from '@angular/material/tabs';
 
 const THEME = 'ace/theme/xcode';
 const THEME2 = 'ace/theme/terminal';
 const LANG1 = 'ace/mode/csharp';
 const LANG2 = 'ace/mode/python';
+const LANG3 = 'ace/mode/html';
 
 @Component({
   selector: 'app-editores',
@@ -26,11 +31,16 @@ const LANG2 = 'ace/mode/python';
 })
 export class EditoresComponent implements AfterViewInit {
 
+  @ViewChild('tabGroup') tabGroup;
+
   @ViewChild('Receptor', {static: true}) ReceptorRef: ElementRef;
   Receptor: ace.Ace.Editor;
 
   @ViewChild('Emisor', {static: true}) EmisorRef: ElementRef;
   Emisor: ace.Ace.Editor;
+
+  @ViewChild('HtmlEditor', {static: true}) HtmlRef: ElementRef;
+  HtmlEditor: ace.Ace.Editor;
 
   private editorBeautify;
   @Input() document: Documento;
@@ -44,35 +54,49 @@ export class EditoresComponent implements AfterViewInit {
   errorSintactico = false;
   exito = false;
   jsonErrorArray: Array<Error>;
+  variables: Array<Variable>;
+  html: string;
 
   constructor() { }
 
   /*AREA DE INICIALIZACIÓN DE INTERFAZ */
 
   ngAfterViewInit(): void {
+    this.jsonErrorArray = new Array();
+
     ace.require('ace/ext/language_tools');
     this.editorBeautify = ace.require('ace/ext/beautify');
+
     const emisorElement = this.ReceptorRef.nativeElement;
     const receptorElement = this.EmisorRef.nativeElement;
+    const htmlElement = this.HtmlRef.nativeElement;
+
     const editorOptions = this.getEditorOptions();
-    this.jsonErrorArray = new Array();
+
     this.Receptor = ace.edit(emisorElement, editorOptions);
     this.Receptor.setTheme(THEME);
     this.Receptor.getSession().setMode(LANG1);
     this.Receptor.setShowFoldWidgets(true);
+    this.Receptor.insert(this.document.contenido);
 
     this.Emisor = ace.edit(receptorElement, editorOptions);
     this.Emisor.setTheme(THEME2);
     this.Emisor.getSession().setMode(LANG2);
-    this.Receptor.setShowFoldWidgets(true);
-    this.Receptor.insert(this.document.contenido);
+    this.Emisor.setShowFoldWidgets(true);
+
+    this.HtmlEditor = ace.edit(htmlElement, editorOptions);
+    this.HtmlEditor.setTheme(THEME);
+    this.HtmlEditor.getSession().setMode(LANG3);
+    this.HtmlEditor.setShowFoldWidgets(true);
+    this.HtmlEditor.setOptions({readOnly: true});
+    this.HtmlEditor.insert(this.html);
   }
   private getEditorOptions(): Partial<ace.Ace.EditorOptions> & { enableBasicAutocompletion?: boolean; }
   {
     const basicEditorOptions: Partial<ace.Ace.EditorOptions> = {
         highlightActiveLine: true,
-        minLines: 10,
-        maxLines: Infinity,
+        minLines: 14,
+        maxLines: 14,
     };
 
     const extraEditorOptions = {
@@ -91,6 +115,7 @@ export class EditoresComponent implements AfterViewInit {
 
   scan(entrada: string)
   {
+    this.html = '';
     entrada += '\n#'; // Añadiendo el simbolo final.
     this.fila = 1;
     this.columna = 0;
@@ -660,14 +685,20 @@ export class EditoresComponent implements AfterViewInit {
   }
 
   /* ÁREA DE FLUJO GENERAL DEL ANÁLISIS */
+
   analisis()
   {
     this.errorLexico = false;
     this.scan(this.Receptor.getValue());
     console.log(this.flujoDeTokens);
     this.exito = this.mensajeDefin();
+    this.obtenerVariables();
+    this.getHTML();
     this.Receptor.getSession().setAnnotations(this.jsonErrorArray);
   }
+
+  /* CONTROLADORES DE ETIQUETAS HTML */
+
   mensajeDefin()
   {
     if (!this.errorSintactico && !this.errorLexico && this.flujoDeTokens != null)
@@ -675,5 +706,82 @@ export class EditoresComponent implements AfterViewInit {
       return true;
     }
     return false;
+  }
+  /* OBTENER VARIABLES EN EL ARCHIVO DE ENTRADA */
+  obtenerVariables()
+  {
+    this.variables = new Array();
+    let tipo: Token;
+    // tslint:disable-next-line: prefer-for-of
+    for (let i = 0; i < this.flujoDeTokens.length; i++)
+    {
+      const tok: Token = this.flujoDeTokens[i];
+      if (tok.Tipo === Tipo.IDENTIFICADOR)
+      {
+        const anterior = this.flujoDeTokens[i - 1];
+        const siguiente = this.flujoDeTokens[i + 1];
+        if ((anterior.Tipo === Tipo.RESERVADA_DOUBLE || anterior.Tipo === Tipo.RESERVADA_INT ||
+        anterior.Tipo === Tipo.RESERVADA_STRING || anterior.Tipo === Tipo.RESERVADA_CHAR ||
+        anterior.Tipo === Tipo.RESERVADA_BOOL || anterior.Tipo === Tipo.IDENTIFICADOR
+        ) && siguiente.Tipo === Tipo.IGUAL)
+        {
+          tipo = anterior;
+          this.variables.push(new Variable(tok.lexema, tok.fila, tipo.GetTipoString()));
+        }
+        else if ((anterior.Tipo === Tipo.RESERVADA_DOUBLE || anterior.Tipo === Tipo.RESERVADA_INT ||
+        anterior.Tipo === Tipo.RESERVADA_STRING || anterior.Tipo === Tipo.RESERVADA_CHAR ||
+        anterior.Tipo === Tipo.RESERVADA_BOOL) && siguiente.Tipo === Tipo.PUNTO_Y_COMA)
+        {
+          tipo = anterior;
+          this.variables.push(new Variable(tok.lexema, tok.fila, tipo.GetTipoString()));
+        }
+        else if ((anterior.Tipo === Tipo.RESERVADA_DOUBLE || anterior.Tipo === Tipo.RESERVADA_INT ||
+        anterior.Tipo === Tipo.RESERVADA_STRING || anterior.Tipo === Tipo.RESERVADA_CHAR ||
+        anterior.Tipo === Tipo.RESERVADA_BOOL) && siguiente.Tipo === Tipo.COMA)
+        {
+          tipo = anterior;
+          this.variables.push(new Variable(tok.lexema, tok.fila, tipo.GetTipoString()));
+        }
+        else if ((anterior.Tipo === Tipo.RESERVADA_DOUBLE || anterior.Tipo === Tipo.RESERVADA_INT ||
+        anterior.Tipo === Tipo.RESERVADA_STRING || anterior.Tipo === Tipo.RESERVADA_CHAR ||
+        anterior.Tipo === Tipo.RESERVADA_BOOL) && siguiente.Tipo === Tipo.PARENTESIS_CIERRE)
+        {
+          tipo = anterior;
+          this.variables.push(new Variable(tok.lexema, tok.fila, tipo.GetTipoString()));
+        }
+        else if ( anterior.Tipo === Tipo.COMA && siguiente.Tipo === Tipo.COMA)
+        {
+          this.variables.push(new Variable(tok.lexema, tok.fila, tipo.GetTipoString()));
+        }
+        else if ( anterior.Tipo === Tipo.COMA && siguiente.Tipo === Tipo.PUNTO_Y_COMA)
+        {
+          this.variables.push(new Variable(tok.lexema, tok.fila, tipo.GetTipoString()));
+        }
+        else if ( anterior.Tipo === Tipo.COMA && siguiente.Tipo === Tipo.PARENTESIS_CIERRE)
+        {
+          this.variables.push(new Variable(tok.lexema, tok.fila, tipo.GetTipoString()));
+        }
+      }
+    }
+    console.log(this.variables);
+  }
+
+  /* OBTENIENDO EL CÓDIGO HTML */
+
+  getHTML()
+  {
+    let html = '<!DOCTYPE html>';
+    // tslint:disable-next-line: prefer-for-of
+    for (let i = 0; i < this.flujoDeTokens.length; i++)
+    {
+      const tok = this.flujoDeTokens[i];
+      if (tok.Tipo === Tipo.HTML)
+      {
+        html += tok.lexema.replace(/\'/g, '');
+        html += '\n';
+      }
+    }
+    this.HtmlEditor.setValue(html);
+    this.editorBeautify.beautify(this.HtmlEditor.session);
   }
 }
