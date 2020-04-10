@@ -41,7 +41,6 @@ export class PrincipalComponent implements OnInit {
     for (let index = 0; index < this.uploadedFiles.length; index++) {
       // tslint:disable-next-line: no-shadowed-variable
       const element = this.uploadedFiles[index];
-      console.log(element.stream);
       formData.append('uploads[]', element, element.name);
     }
     // Call service.

@@ -1,9 +1,21 @@
 <div class="row">
   <div class="col">
-    <div class="code-editor" style="max-width: 36.5rem; min-width: 36.5rem;" #Receptor></div>
+    <div class="code-editor" style="max-width: 34.5rem; min-width: 34.5rem;" #Receptor></div>
+    <div class="alert alert-warning alert-dismissable" *ngIf="errorLexico" style="max-width: 32.5rem; min-width: 32.5rem;">
+      <button type="button" class="close" data-dismiss="alert" (click)="errorLexico = false">&times;</button>
+      <strong>¡Cuidado!</strong> El programa fuente contiene errores léxicos.
+    </div>
+    <div class="alert alert-danger alert-dismissable" *ngIf="errorSintactico" style="max-width: 32.5rem; min-width: 32.5rem;">
+      <button type="button" class="close" data-dismiss="alert" (click)="errorSintactico = false">&times;</button>
+      <strong>¡Cuidado!</strong> El programa fuente contiene errores sintácticos.
+    </div>
+    <div class="alert alert-success alert-dismissable" *ngIf="exito" style="max-width: 32.5rem; min-width: 32.5rem;">
+      <button type="button" class="close" data-dismiss="alert" (click)="exito = false">&times;</button>
+      <strong>¡Felicidades!</strong> El programa ha sido traducido con éxito.
+    </div>
   </div>
   <div class="col">
-    <div class="code-editor" style="max-width: 36.5rem; min-width: 36.5rem;" #Emisor></div>
+    <div class="code-editor" style="max-width: 34.5rem; min-width: 34.5rem;" #Emisor></div>
   </div>
 </div>
 <div class="row">
@@ -50,7 +62,7 @@
 <div class="row justify-content-center">
   <div class="col">
     <div class="row justify-content-center">
-      <button mat-fab color="warn" >
+      <button mat-fab color="warn" (click)="analisis()">
         <mat-icon>
           code
         </mat-icon>
