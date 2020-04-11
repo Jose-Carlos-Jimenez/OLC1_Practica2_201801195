@@ -8,21 +8,21 @@ import 'ace-builds/src-noconflict/theme-terminal';
 import 'ace-builds/src-noconflict/ext-language_tools';
 import 'ace-builds/src-noconflict/ext-beautify';
 import 'ace-builds/src-noconflict/mode-html';
-
+import 'ace-builds/src-noconflict/mode-json';
 
 import { Documento } from '../objetos/documento';
 import { Token, Tipo } from '../objetos/token';
 import { Variable } from '../objetos/variable';
 import { Error } from '../objetos/error';
 import { saveAs } from 'file-saver';
-import { stringify } from 'querystring';
-import { MatTabsModule } from '@angular/material/tabs';
+import { element } from 'protractor';
 
 const THEME = 'ace/theme/xcode';
 const THEME2 = 'ace/theme/terminal';
 const LANG1 = 'ace/mode/csharp';
 const LANG2 = 'ace/mode/python';
 const LANG3 = 'ace/mode/html';
+const LANG4 = 'ace/mode/json';
 
 @Component({
   selector: 'app-editores',
@@ -41,6 +41,9 @@ export class EditoresComponent implements AfterViewInit {
 
   @ViewChild('HtmlEditor', {static: true}) HtmlRef: ElementRef;
   HtmlEditor: ace.Ace.Editor;
+
+  @ViewChild('JsonEditor', {static: true}) JsonRef: ElementRef;
+  JsonEditor: ace.Ace.Editor;
 
   private editorBeautify;
   @Input() document: Documento;
@@ -70,6 +73,7 @@ export class EditoresComponent implements AfterViewInit {
     const emisorElement = this.ReceptorRef.nativeElement;
     const receptorElement = this.EmisorRef.nativeElement;
     const htmlElement = this.HtmlRef.nativeElement;
+    const jsonElement = this.JsonRef.nativeElement;
 
     const editorOptions = this.getEditorOptions();
 
@@ -83,13 +87,20 @@ export class EditoresComponent implements AfterViewInit {
     this.Emisor.setTheme(THEME2);
     this.Emisor.getSession().setMode(LANG2);
     this.Emisor.setShowFoldWidgets(true);
+    this.Emisor.setOptions({readOnly: true});
 
     this.HtmlEditor = ace.edit(htmlElement, editorOptions);
     this.HtmlEditor.setTheme(THEME);
     this.HtmlEditor.getSession().setMode(LANG3);
     this.HtmlEditor.setShowFoldWidgets(true);
     this.HtmlEditor.setOptions({readOnly: true});
-    this.HtmlEditor.insert(this.html);
+
+    this.JsonEditor = ace.edit(jsonElement, editorOptions);
+    this.JsonEditor.setTheme(THEME2);
+    this.JsonEditor.getSession().setMode(LANG4);
+    this.JsonEditor.setShowFoldWidgets(true);
+    this.JsonEditor.setOptions({readOnly: true});
+
   }
   private getEditorOptions(): Partial<ace.Ace.EditorOptions> & { enableBasicAutocompletion?: boolean; }
   {
@@ -243,6 +254,11 @@ export class EditoresComponent implements AfterViewInit {
           {
             this.auxLex += c;
             this.estado = 12;
+          }
+          else if ( c === '&')
+          {
+            this.auxLex += c;
+            this.estado = 17;
           }
           else if (this.IsNumber(c))// Me enviará al estado para reconocer enteros
           {
@@ -624,7 +640,18 @@ export class EditoresComponent implements AfterViewInit {
           }
           else
           {
-            this.auxLex += c;
+            i--;
+            this.agregarToken(Tipo.NOT);
+          }
+          break;
+        case 17:
+          this.auxLex += c;
+          if (c === '&')
+          {
+            this.agregarToken(Tipo.AND);
+          }
+          else
+          {
             this.agregarToken(Tipo.ERROR);
           }
           break;
@@ -770,18 +797,124 @@ export class EditoresComponent implements AfterViewInit {
 
   getHTML()
   {
-    let html = '<!DOCTYPE html>';
+    // let htmlText = '<!DOCTYPE html>';
+    let htmlText = '';
     // tslint:disable-next-line: prefer-for-of
     for (let i = 0; i < this.flujoDeTokens.length; i++)
     {
       const tok = this.flujoDeTokens[i];
       if (tok.Tipo === Tipo.HTML)
       {
-        html += tok.lexema.replace(/\'/g, '');
-        html += '\n';
+        htmlText += tok.lexema.replace(/\'/g, '');
+        htmlText += '\n';
       }
     }
-    this.HtmlEditor.setValue(html);
-    this.editorBeautify.beautify(this.HtmlEditor.session);
+    this.HtmlEditor.setValue(htmlText);
+    this.editorBeautify.beautify(this.HtmlEditor.session );
+    this.getJson(htmlText);
+  }
+
+  getJson(html: string)
+  {
+    const htmlInput = html.replace(/\n/g, '').replace(/\r/g, '').replace(/<br>/g, '\n').replace(/<input>/g, '');
+    console.log(htmlInput);
+    let json = '{';
+    // tslint:disable-next-line: prefer-for-of
+    for (let index = 0; index < htmlInput.length; index++) {
+      // tslint:disable-next-line: no-shadowed-variable
+      let element = htmlInput[index].toUpperCase();
+
+      if (element === '<' && htmlInput[index + 1] !== '/')
+      {
+        let hasStyle = false;
+        json += '"';
+        index++;
+        element = htmlInput[index];
+        while (element !== '>')
+        {
+          if (!hasStyle)
+          {
+            if (element !== 's')
+            {
+              json += element;
+              index++;
+              element = htmlInput[index];
+            }
+            else
+            {
+              hasStyle = true;
+            }
+          }
+          else
+          {
+            let aux = '';
+            while (element !== '>')
+            {
+              aux += element;
+              index++;
+              element = htmlInput[index];
+            }
+            const aux2 = aux.replace(/style=/gi, '"STYLE":');
+            json += '":\n{\n';
+            json += aux2 + ',\n';
+          }
+        }
+        if (hasStyle)
+        {
+
+        }
+        else
+        {
+          json += '":\n{';
+        }
+      }
+      else if (element === '<' && htmlInput[index + 1] === '/')
+      {
+        json += '}';
+        index++;
+        element = htmlInput[index];
+        while (element !== '>')
+        {
+          index++;
+          element = htmlInput[index];
+        }
+        if (index + 2 < htmlInput.length && htmlInput[index + 1] === '<' && htmlInput[index + 2] !== '/')
+        {
+          json += ',';
+        }
+        json += '\n';
+      }
+      else if (htmlInput[index - 1] === '>' && element !== '<' && element !== ' '
+      && element !== '\n' && element !== '\t')
+      {
+        json += '\n"TEXT": "';
+        while (element !== '<')
+        {
+          if (element !== '\n' && element !== '\r' && element !== '\t')
+          {
+            json += element;
+          }
+          index++;
+          element  = htmlInput[index];
+        }
+        json += '"\n},\n';
+      }
+    }
+    json += '}\n';
+    console.log(json);
+    let jsonaux = '';
+    for (let index = 0; index < json.length; index++) {
+      // tslint:disable-next-line: no-shadowed-variable
+      const element = json[index];
+      if (element === ',' && json[index + 1] === '\n' && json[index + 2] === '}')
+      {
+      }
+      else
+      {
+        jsonaux += element;
+      }
+    }
+    this.JsonEditor.setValue(jsonaux);
+    this.editorBeautify.beautify(this.JsonEditor.session);
   }
 }

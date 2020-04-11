@@ -108,8 +108,8 @@ export class Token
                 return 'ERROR';
             case Tipo.RESERVADA_VOID:
                 return 'Reservada void';
-            case Tipo.ADMIRACION:
-                return 'Signo de admiración';
+            case Tipo.NOT:
+                return 'Negacion';
             case Tipo.DOS_PUNTOS:
                 return 'Signo dos puntos';
             case Tipo.RESERVADA_IF:
@@ -133,7 +133,7 @@ export class Token
 export enum Tipo
 {
   RESERVADA_INT, RESERVADA_DOUBLE, RESERVADA_DO,
-  RESERVADA_CHAR, RESERVADA_STRING,
+  RESERVADA_CHAR, RESERVADA_STRING, AND,
   RESERVADA_BOOL, CADENA, RETURN,
   NUMERO, GUION_BAJO, COMA, PUNTO_Y_COMA,
   TRUE, FALSE, PUNTO, SIGNO_MAS, SIGNO_MENOS,
@@ -142,7 +142,7 @@ export enum Tipo
   LLAVE_APERTURA, LLAVE_CIERRE, DIFERENTE,
   CORCHETE_APERTURA, CORCHETE_CIERRE,
   IDENTIFICADOR, IGUAL, IGUAL_QUE, MAYOR_QUE, MAYOR_IGUAL, MENOR_QUE,
-  MENOR_IGUAL, ADMIRACION, RESERVADA_CLASS, RESERVADA_STATIC,
+  MENOR_IGUAL, NOT, RESERVADA_CLASS, RESERVADA_STATIC,
   RESERVADA_VOID, RESERVADA_MAIN, RESERVADA_ARGS,
   FUNCION_WRITELINE, RESERVADA_ELSE, RESERVADA_SWITCH,
   RESERVADA_CASE, DOS_PUNTOS, RESERVADA_BREAK,
