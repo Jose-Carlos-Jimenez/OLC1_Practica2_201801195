@@ -15,7 +15,7 @@ import { Token, Tipo } from '../objetos/token';
 import { Variable } from '../objetos/variable';
 import { Error } from '../objetos/error';
 import { saveAs } from 'file-saver';
-import { element } from 'protractor';
+import { THIS_EXPR } from '@angular/compiler/src/output/output_ast';
 
 const THEME = 'ace/theme/xcode';
 const THEME2 = 'ace/theme/terminal';
@@ -55,10 +55,13 @@ export class EditoresComponent implements AfterViewInit {
   auxLex: string;
   errorLexico = false;
   errorSintactico = false;
+  sintacticoFlag = false;
   exito = false;
   jsonErrorArray: Array<Error>;
   variables: Array<Variable>;
   html: string;
+  actual: Token;
+  numeroToken: number;
 
   constructor() { }
 
@@ -665,7 +668,7 @@ export class EditoresComponent implements AfterViewInit {
   {
     if (tipo === Tipo.IDENTIFICADOR)
     {
-      console.log('Variable: ' + this.auxLex + ' en la fila ' + this.fila );
+      // console.log('Variable: ' + this.auxLex + ' en la fila ' + this.fila );
     }
 
     if (tipo === Tipo.ERROR)
@@ -673,7 +676,6 @@ export class EditoresComponent implements AfterViewInit {
       const nuevo = new Token(tipo, this.auxLex, this.fila, this.columna, 'Error léxico en la fila ' + this.fila, true);
       this.flujoDeTokens.push(nuevo);
       this.errorLexico = true;
-      this.errorSintactico = true;
       this.jsonErrorArray.push(new Error('Error ' + this.auxLex + ' en columna ' + this.columna, this.fila - 1, this.columna));
     }
     else
@@ -715,12 +717,16 @@ export class EditoresComponent implements AfterViewInit {
 
   analisis()
   {
+    console.clear();
     this.errorLexico = false;
+    this.errorSintactico = false;
+    this.sintacticoFlag = false;
     this.scan(this.Receptor.getValue());
-    console.log(this.flujoDeTokens);
-    this.exito = this.mensajeDefin();
+    // console.log(this.flujoDeTokens);
     this.obtenerVariables();
     this.getHTML();
+    this.parse();
+    this.exito = this.mensajeDefin();
     this.Receptor.getSession().setAnnotations(this.jsonErrorArray);
   }
 
@@ -790,7 +796,7 @@ export class EditoresComponent implements AfterViewInit {
         }
       }
     }
-    console.log(this.variables);
+    // console.log(this.variables);
   }
 
   /* OBTENIENDO EL CÓDIGO HTML */
@@ -817,7 +823,6 @@ export class EditoresComponent implements AfterViewInit {
   getJson(html: string)
   {
     const htmlInput = html.replace(/\n/g, '').replace(/\r/g, '').replace(/<br>/g, '\n').replace(/<input>/g, '');
-    console.log(htmlInput);
     let json = '{';
     // tslint:disable-next-line: prefer-for-of
     for (let index = 0; index < htmlInput.length; index++) {
@@ -901,7 +906,6 @@ export class EditoresComponent implements AfterViewInit {
       }
     }
     json += '}\n';
-    console.log(json);
     let jsonaux = '';
     for (let index = 0; index < json.length; index++) {
       // tslint:disable-next-line: no-shadowed-variable
@@ -916,5 +920,876 @@ export class EditoresComponent implements AfterViewInit {
     }
     this.JsonEditor.setValue(jsonaux);
     this.editorBeautify.beautify(this.JsonEditor.session);
+  }
+
+  /* AREA DE ANÁLISIS SINTÁCTICO */
+
+  /* MÉTODO PARA INICIALIZAR ANALISIS SINTACTICO */
+  parse()
+  {
+      this.numeroToken = 0;
+      this.actual = this.flujoDeTokens[this.numeroToken];
+      this.INICIO(); // Simbolo inicial de la gramática
+  }
+
+  /* MÉTODO PARA VERIFICAR QUE SEA EL TOKEN ESPERADO */
+  match(tipo: Tipo)
+  {
+    /* SALTANDO COMENTARIOS */
+    if (this.actual.Tipo === Tipo.COMENTARIO_BLOQUE || this.actual.Tipo === Tipo.COMENTARIO_LINEA)
+    {
+      while (this.actual.Tipo === Tipo.COMENTARIO_BLOQUE || this.actual.Tipo === Tipo.COMENTARIO_LINEA)
+      {
+        this.numeroToken++;
+        this.actual = this.flujoDeTokens[this.numeroToken];
+      }
+    }
+    /* VERIFICANDO EL TIPO DE TOKEN Y AVANZANDO */
+    if (this.sintacticoFlag) {
+      if (this.actual.GetTipoString() !== 'End of') {
+        const tip = this.actual.Tipo;
+        if (tipo === tip) {
+          this.sintacticoFlag = false;
+          this.numeroToken++;
+          this.actual = this.flujoDeTokens[this.numeroToken];
+        }
+      }
+    }
+    else
+    {
+      if (this.actual.Tipo !== Tipo.ULTIMO )
+      {
+        if (this.actual.Tipo !== tipo)
+        {
+          const aux = new Token(tipo, '', 0, 0, 'auxiliar', false);
+          aux.Tipo = tipo;
+          /* CREANDO MARCADOR PARA EL ERROR EN EL EDITOR DE TEXTO */
+          this.jsonErrorArray.push(new Error( 'Se esperaba [' + aux.GetTipoString() +
+          '] y se obtuvo [' + this.actual.GetTipoString() + ']' , this.actual.fila - 1, this.columna));
+
+          /* MARCANDO EL ERROR */
+
+          console.log('ERROR: se obtuvo >>' + this.actual.GetTipoString()
+          + '<< y se esperaba >>' + aux.GetTipoString() + '<< en la linea ' + this.actual.fila
+          + ' y la columna ' + this.actual.columna);
+          this.sintacticoFlag = true;
+          this.errorSintactico = true;
+
+          /* AVANZO HASTA UN CARACTER DE EMPAREJAMIENTO */
+          let tip: Tipo = this.actual.Tipo;
+          while (tip !== Tipo.LLAVE_CIERRE && tip !== Tipo.LLAVE_APERTURA && tip !== Tipo.PUNTO_Y_COMA)
+          {
+            this.numeroToken++;
+            this.actual = this.flujoDeTokens[this.numeroToken];
+            tip = this.actual.Tipo;
+          }
+        }
+        else
+        {
+          this.numeroToken++;
+          this.actual = this.flujoDeTokens[this.numeroToken];
+        }
+      }
+    }
+
+    /* SALTANDO COMENTARIOS */
+    if (this.actual.Tipo === Tipo.COMENTARIO_BLOQUE || this.actual.Tipo === Tipo.COMENTARIO_LINEA)
+    {
+      while (this.actual.Tipo === Tipo.COMENTARIO_BLOQUE || this.actual.Tipo === Tipo.COMENTARIO_LINEA)
+      {
+        this.numeroToken++;
+        this.actual = this.flujoDeTokens[this.numeroToken];
+      }
+    }
+  }
+
+  /* MÉTODO PARA VERIFICAR SI ES UN TIPO */
+  esTipo(): boolean
+  {
+    const tipo = this.actual.Tipo;
+    const reservadas  = [Tipo.RESERVADA_BOOL, Tipo.RESERVADA_CHAR, Tipo.RESERVADA_DOUBLE, Tipo.RESERVADA_INT,
+    Tipo.RESERVADA_STRING];
+    return reservadas.includes(tipo, 0);
+  }
+
+  /* MÉTODO PARA SABER SI ES UN RELACIONAL */
+  esRelacional()
+  {
+    const b = this.actual.Tipo;
+    return b === Tipo.IGUAL_QUE || b === Tipo.DIFERENTE || b === Tipo.MAYOR_QUE
+    || b === Tipo.MENOR_QUE || b === Tipo.MAYOR_IGUAL || b === Tipo.MENOR_IGUAL;
+  }
+
+  INICIO()
+  {
+    this.match(Tipo.RESERVADA_CLASS);
+    this.match(Tipo.IDENTIFICADOR);
+    this.match(Tipo.LLAVE_APERTURA);
+    this.INST_GENERALES();
+    this.match(Tipo.LLAVE_CIERRE);
+  }
+
+  INST_GENERALES()
+  {
+    if (this.actual.Tipo === Tipo.RESERVADA_VOID)
+    {
+      this.match(Tipo.RESERVADA_VOID);
+      this.METODO();
+      this.INST_GENERALES();
+    }
+    else if (this.esTipo())
+    {
+      this.TIPO();
+      this.match(Tipo.IDENTIFICADOR);
+      this.INST_GENERALES_P();
+      this.INST_GENERALES();
+    }
+    else
+    {
+
+    }
+  }
+
+  INST_GENERALES_P()
+  {
+    if (this.actual.Tipo === Tipo.PARENTESIS_APERTURA)
+    {
+      this.match(Tipo.PARENTESIS_APERTURA);
+      this.PARAMETROS();
+      this.match(Tipo.PARENTESIS_CIERRE);
+      this.match(Tipo.LLAVE_APERTURA);
+      this.INST_FUNCIONES();
+      this.match(Tipo.LLAVE_CIERRE);
+      this.INST_GENERALES();
+    }
+    else
+    {
+      this.DECLARACION();
+      this.INSTRUCCIONES();
+    }
+
+  }
+
+  INSTRUCCIONES()
+  {
+    if (this.esTipo())
+    {
+      this.TIPO();
+      this.match(Tipo.IDENTIFICADOR);
+      this.DECLARACION();
+      this.INSTRUCCIONES();
+    }
+    else if (this.actual.Tipo === Tipo.RESERVADA_IF)
+    {
+      this.match(Tipo.RESERVADA_IF);
+      this.IF();
+      this.INSTRUCCIONES();
+    }
+    else if (this.actual.Tipo === Tipo.RESERVADA_SWITCH)
+    {
+      this.match(Tipo.RESERVADA_SWITCH);
+      this.SWITCH();
+      this.INSTRUCCIONES();
+    }
+    else if (this.actual.Tipo === Tipo.RESERVADA_WHILE)
+    {
+      this.match(Tipo.RESERVADA_WHILE);
+      this.WHILE();
+      this.INSTRUCCIONES();
+    }
+    else if (this.actual.Tipo === Tipo.RESERVADA_DO)
+    {
+      this.match(Tipo.RESERVADA_DO);
+      this.DO_WHILE();
+      this.INSTRUCCIONES();
+    }
+    else if (this.actual.Tipo === Tipo.FUNCION_WRITELINE)
+    {
+      this.match(Tipo.FUNCION_WRITELINE);
+      this.IMPRIMIR();
+      this.INSTRUCCIONES();
+    }
+    else if (this.actual.Tipo === Tipo.IDENTIFICADOR)
+    {
+      this.match(Tipo.IDENTIFICADOR);
+      this.ASIGNACION();
+      this.INSTRUCCIONES();
+    }
+    else if (this.actual.Tipo === Tipo.RETURN)
+    {
+      this.match(Tipo.RETURN);
+      if (this.actual.GetTipoString() !== 'Punto y coma')
+      {
+        this.EXPRESION();
+      }
+      this.match(Tipo.PUNTO_Y_COMA);
+      this.INSTRUCCIONES();
+    }
+    else
+    {
+      return;
+    }
+  }
+
+  DECLARACION()
+  {
+    if (this.actual.Tipo === Tipo.COMA)
+    {
+      this.match(Tipo.COMA);
+      this.match(Tipo.IDENTIFICADOR);
+      this.DECLARACION_P();
+    }
+    else if (this.actual.Tipo === Tipo.PUNTO_Y_COMA)
+    {
+      this.match(Tipo.PUNTO_Y_COMA);
+    }
+    else
+    {
+      this.match(Tipo.IGUAL);
+      this.EXPRESION();
+      this.match(Tipo.PUNTO_Y_COMA);
+    }
+  }
+
+  INST_FUNCIONES()
+  {
+    if (this.actual.Tipo === Tipo.RETURN)
+    {
+      this.match(Tipo.RETURN);
+      this.EXPRESION();
+      this.match(Tipo.PUNTO_Y_COMA);
+    }
+    else
+    {
+      this.INSTRUCCIONES();
+    }
+  }
+
+  DECLARACION_P()
+  {
+    if (this.actual.Tipo === Tipo.COMA)
+    {
+      this.match(Tipo.COMA);
+      this.match(Tipo.IDENTIFICADOR);
+      this.DECLARACION_P();
+    }
+    else if ( this.actual.Tipo === Tipo.IGUAL)
+    {
+      this.match(Tipo.IGUAL);
+      this.EXPRESION();
+      this.match(Tipo.PUNTO_Y_COMA);
+    }
+    else
+    {
+      this.match(Tipo.PUNTO_Y_COMA);
+    }
+  }
+
+  CONDICION()
+  {
+    if (this.actual.Tipo === Tipo.NOT)
+    {
+      this.match(Tipo.NOT);
+      this.EXPRESION();
+      this.CONDICION_P();
+      this.CONDICION_PLUS();
+    }
+    else if (this.actual.Tipo === Tipo.TRUE)
+    {
+      this.match(Tipo.TRUE);
+    }
+    else if (this.actual.Tipo === Tipo.FALSE)
+    {
+      this.match(Tipo.FALSE);
+    }
+
+    else
+    {
+      this.EXPRESION();
+      this.CONDICION_P();
+      this.CONDICION_PLUS();
+    }
+  }
+
+  CONDICION_P()
+  {
+    if (this.esRelacional())
+    {
+      this.COMPARADOR();
+      this.EXPRESION();
+    }
+    else
+    {
+      // EPSILON
+    }
+  }
+
+  COMPARADOR()
+  {
+    if (this.actual.Tipo === Tipo.IGUAL_QUE)
+    {
+      this.match(Tipo.IGUAL_QUE);
+    }
+    else if (this.actual.Tipo === Tipo.DIFERENTE)
+    {
+      this.match(Tipo.DIFERENTE);
+    }
+    else if (this.actual.Tipo === Tipo.MAYOR_QUE)
+    {
+      this.match(Tipo.MAYOR_QUE);
+    }
+    else if (this.actual.Tipo === Tipo.MENOR_QUE)
+    {
+      this.match(Tipo.MENOR_QUE);
+    }
+    else if (this.actual.Tipo === Tipo.MAYOR_IGUAL)
+    {
+      this.match(Tipo.MAYOR_IGUAL);
+    }
+    else
+    {
+      this.match(Tipo.MENOR_IGUAL);
+    }
+  }
+
+  CONDICION_PLUS()
+  {
+    if (this.actual.Tipo === Tipo.AND)
+    {
+      this.match(Tipo.AND);
+    }
+    else if ( this.actual.Tipo === Tipo.OR_LOGICO)
+    {
+      this.match(Tipo.OR_LOGICO);
+    }
+    else
+    {
+      // EPSILON
+    }
+  }
+
+  TIPO()
+  {
+    if (this.actual.Tipo === Tipo.RESERVADA_INT)
+    {
+      this.match(Tipo.RESERVADA_INT);
+    }
+    else if (this.actual.Tipo === Tipo.RESERVADA_BOOL)
+    {
+      this.match(Tipo.RESERVADA_BOOL);
+    }
+    else if (this.actual.Tipo === Tipo.RESERVADA_STRING)
+    {
+      this.match(Tipo.RESERVADA_STRING);
+    }
+    else if (this.actual.Tipo === Tipo.RESERVADA_CHAR)
+    {
+      this.match(Tipo.RESERVADA_CHAR);
+    }
+    else
+    {
+      this.match(Tipo.RESERVADA_DOUBLE);
+    }
+  }
+
+  VALOR()
+  {
+    if (this.actual.Tipo === Tipo.VALOR_CHAR)
+    {
+      this.match(Tipo.VALOR_CHAR);
+    }
+    else if (this.actual.Tipo === Tipo.TRUE)
+    {
+      this.match(Tipo.TRUE);
+    }
+    else if (this.actual.Tipo === Tipo.FALSE)
+    {
+      this.match(Tipo.FALSE);
+    }
+    else if (this.actual.Tipo === Tipo.CADENA)
+    {
+      this.match(Tipo.CADENA);
+    }
+    else if (this.actual.Tipo === Tipo.NUMERO_ENTERO)
+    {
+      this.match(Tipo.NUMERO_ENTERO);
+    }
+    else
+    {
+      this.match(Tipo.NUMERO_DECIMAL);
+    }
+  }
+
+  ASIGNACION()
+  {
+    if (this.actual.Tipo === Tipo.IGUAL)
+    {
+      this.match(Tipo.IGUAL);
+      this.EXPRESION();
+      this.match(Tipo.PUNTO_Y_COMA);
+    }
+    else
+    {
+      this.match(Tipo.PUNTO_Y_COMA);
+      // EPSILON
+    }
+  }
+
+  EXPRESION()
+  {
+    if (this.actual.Tipo === Tipo.NOT)
+    {
+      this.match(Tipo.NOT);
+      this.TERMINOS();
+      this.EXPRESION_P();
+    }
+    else
+    {
+      this.TERMINOS();
+      this.EXPRESION_P();
+    }
+  }
+
+  EXPRESION_P()
+  {
+    if (this.actual.Tipo === Tipo.SIGNO_MENOS)
+    {
+      this.match(Tipo.SIGNO_MENOS);
+      this.TERMINOS();
+      this.EXPRESION_P();
+    }
+    else if (this.actual.Tipo === Tipo.SIGNO_MAS)
+    {
+      this.match(Tipo.SIGNO_MAS);
+      this.TERMINOS();
+      this.EXPRESION_P();
+    }
+    else
+    {
+      // EPSILON
+    }
+  }
+
+  TERMINOS()
+  {
+    this.FACTORES();
+    this.TERMINOS_P();
+  }
+
+  TERMINOS_P()
+  {
+    if (this.actual.Tipo === Tipo.SIGNO_MULTIPLICACION)
+    {
+      this.match(Tipo.SIGNO_MULTIPLICACION);
+      this.FACTORES();
+      this.TERMINOS_P();
+    }
+    else if ( this.actual.Tipo === Tipo.SIGNO_DIVISION)
+    {
+      this.match(Tipo.SIGNO_DIVISION);
+      this.FACTORES();
+      this.TERMINOS_P();
+    }
+    else if ( this.actual.Tipo === Tipo.AND)
+    {
+      this.match(Tipo.AND);
+      this.FACTORES();
+      this.TERMINOS_P();
+    }
+    else if ( this.actual.Tipo === Tipo.OR_LOGICO)
+    {
+      this.match(Tipo.OR_LOGICO);
+      this.FACTORES();
+      this.TERMINOS_P();
+    }
+    else if ( this.actual.Tipo === Tipo.IGUAL_QUE)
+    {
+      this.match(Tipo.IGUAL_QUE);
+      this.FACTORES();
+      this.TERMINOS_P();
+    }
+    else if ( this.actual.Tipo === Tipo.MAYOR_QUE)
+    {
+      this.match(Tipo.MAYOR_QUE);
+      this.FACTORES();
+      this.TERMINOS_P();
+    }
+    else if ( this.actual.Tipo === Tipo.MENOR_QUE)
+    {
+      this.match(Tipo.MENOR_QUE);
+      this.FACTORES();
+      this.TERMINOS_P();
+    }
+    else if ( this.actual.Tipo === Tipo.MAYOR_IGUAL)
+    {
+      this.match(Tipo.MAYOR_IGUAL);
+      this.FACTORES();
+      this.TERMINOS_P();
+    }
+    else if ( this.actual.Tipo === Tipo.MENOR_IGUAL)
+    {
+      this.match(Tipo.MENOR_IGUAL);
+      this.FACTORES();
+      this.TERMINOS_P();
+    }
+    else if ( this.actual.Tipo === Tipo.DIFERENTE)
+    {
+      this.match(Tipo.DIFERENTE);
+      this.FACTORES();
+      this.TERMINOS_P();
+    }
+    else
+    {
+      // EPSILON
+    }
+
+  }
+
+  FACTORES()
+  {
+    if (this.actual.Tipo === Tipo.PARENTESIS_APERTURA)
+    {
+      this.match(Tipo.PARENTESIS_APERTURA);
+      this.EXPRESION();
+      this.match(Tipo.PARENTESIS_CIERRE);
+    }
+    else if (this.actual.Tipo === Tipo.IDENTIFICADOR)
+    {
+      this.match(Tipo.IDENTIFICADOR);
+      this.FUNC();
+    }
+    else if (this.actual.Tipo === Tipo.NOT)
+    {
+      this.match(Tipo.NOT);
+      this.match(Tipo.IDENTIFICADOR);
+    }
+    else if (this.actual.Tipo === Tipo.CADENA)
+    {
+      this.match(Tipo.CADENA);
+    }
+    else if (this.actual.Tipo === Tipo.TRUE)
+    {
+      this.match(Tipo.TRUE);
+    }
+    else if (this.actual.Tipo === Tipo.FALSE)
+    {
+      this.match(Tipo.FALSE);
+    }
+    else if (this.actual.Tipo === Tipo.VALOR_CHAR)
+    {
+      this.match(Tipo.VALOR_CHAR);
+    }
+    else if (this.actual.Tipo === Tipo.NUMERO_ENTERO)
+    {
+      this.match(Tipo.NUMERO_ENTERO);
+    }
+    else
+    {
+      this.match(Tipo.NUMERO_DECIMAL);
+    }
+  }
+
+  FUNC()
+  {
+    if (this.actual.Tipo === Tipo.PARENTESIS_APERTURA)
+    {
+      this.match(Tipo.PARENTESIS_APERTURA);
+      this.SENDPAR();
+      this.match(Tipo.PARENTESIS_CIERRE);
+    }
+    else
+    {
+      // EPSILON
+    }
+
+  }
+
+  SENDPAR()
+  {
+    if (this.actual.Tipo === Tipo.IDENTIFICADOR)
+    {
+      this.EXPRESION();
+      this.SENDPAR();
+    }
+    else if (this.actual.Tipo === Tipo.COMA)
+    {
+      this.match(Tipo.COMA);
+      this.EXPRESION();
+      this.SENDPAR();
+    }
+    else
+    {
+      // EPSILON
+    }
+  }
+
+  METODO()
+  {
+    if (this.actual.Tipo === Tipo.RESERVADA_MAIN)
+    {
+      this.match(Tipo.RESERVADA_MAIN);
+      this.match(Tipo.PARENTESIS_APERTURA);
+      this.match(Tipo.PARENTESIS_CIERRE);
+      this.match(Tipo.LLAVE_APERTURA);
+      this.INSTRUCCIONES();
+      this.match(Tipo.LLAVE_CIERRE);
+    }
+    else
+    {
+      this.match(Tipo.IDENTIFICADOR);
+      this.match(Tipo.PARENTESIS_APERTURA);
+      this.PARAMETROS();
+      this.match(Tipo.PARENTESIS_CIERRE);
+      this.match(Tipo.LLAVE_APERTURA);
+      this.INST_FUNCIONES();
+      this.match(Tipo.LLAVE_CIERRE);
+    }
+  }
+
+  PARAMETROS()
+  {
+    if (this.esTipo())
+    {
+      this.TIPO();
+      this.match(Tipo.IDENTIFICADOR);
+      this.PARAMETROS_P();
+    }
+    else
+    {
+      // EPSILON
+    }
+  }
+
+  PARAMETROS_P()
+  {
+    if (this.actual.Tipo === Tipo.COMA)
+    {
+      this.match(Tipo.COMA);
+      this.TIPO();
+      this.match(Tipo.IDENTIFICADOR);
+      this.PARAMETROS_P();
+    }
+  }
+
+  IF()
+  {
+    this.match(Tipo.PARENTESIS_APERTURA);
+    this.CONDICION();
+    this.match(Tipo.PARENTESIS_CIERRE);
+    this.match(Tipo.LLAVE_APERTURA);
+    this.INSTRUCCIONES();
+    this.match(Tipo.LLAVE_CIERRE);
+    this.ELSE();
+  }
+
+  ELSE()
+  {
+    if (this.actual.Tipo === Tipo.RESERVADA_ELSE)
+    {
+      this.match(Tipo.RESERVADA_ELSE);
+      this.ELSE_P();
+    }
+    else
+    {
+      // EPSILON
+    }
+  }
+
+  ELSE_P()
+  {
+    if (this.actual.Tipo === Tipo.RESERVADA_IF)
+    {
+      this.match(Tipo.RESERVADA_IF);
+      this.match(Tipo.PARENTESIS_APERTURA);
+      this.CONDICION();
+      this.match(Tipo.PARENTESIS_CIERRE);
+      this.match(Tipo.LLAVE_APERTURA);
+      this.INSTRUCCIONES();
+      this.match(Tipo.LLAVE_CIERRE);
+      this.ELSE();
+    }
+    else
+    {
+      this.match(Tipo.LLAVE_APERTURA);
+      this.INSTRUCCIONES();
+      this.match(Tipo.LLAVE_CIERRE);
+    }
+  }
+
+  SWITCH()
+  {
+    this.match(Tipo.PARENTESIS_APERTURA);
+    this.match(Tipo.IDENTIFICADOR);
+    this.match(Tipo.PARENTESIS_CIERRE);
+    this.match(Tipo.LLAVE_APERTURA);
+    this.CASE();
+    this.DEFAULT();
+    this.match(Tipo.LLAVE_CIERRE);
+  }
+
+  CASE()
+  {
+    this.match(Tipo.RESERVADA_CASE);
+    this.VALOR();
+    this.match(Tipo.DOS_PUNTOS);
+    this.INSTRUCCIONES();
+    this.BREAK();
+    this.CASE_P();
+  }
+
+  CASE_P()
+  {
+    if (this.actual.Tipo === Tipo.RESERVADA_CASE)
+    {
+      this.match(Tipo.RESERVADA_CASE);
+      this.VALOR();
+      this.match(Tipo.DOS_PUNTOS);
+      this.INSTRUCCIONES();
+      this.BREAK();
+      this.CASE_P();
+    }
+    else
+    {
+      // EPSILON
+    }
+  }
+
+  DEFAULT()
+  {
+    if (this.actual.Tipo === Tipo.RESERVADA_DEFAULT)
+    {
+      this.match(Tipo.RESERVADA_DEFAULT);
+      this.match(Tipo.DOS_PUNTOS);
+      this.INSTRUCCIONES();
+      this.BREAK();
+    }
+    else
+    {
+      // EPSILON
+    }
+  }
+
+  BREAK()
+  {
+    if (this.actual.Tipo === Tipo.RESERVADA_BREAK)
+    {
+      this.match(Tipo.RESERVADA_BREAK);
+      this.match(Tipo.PUNTO_Y_COMA);
+    }
+    else
+    {
+      // EPSILON
+    }
+  }
+
+  FOR()
+  {
+    this.match(Tipo.PARENTESIS_APERTURA);
+    this.TIPO();
+    this.match(Tipo.IDENTIFICADOR);
+    this.match(Tipo.IGUAL);
+    this.match(Tipo.PUNTO_Y_COMA);
+    this.CONDICION();
+    this.match(Tipo.PUNTO_Y_COMA);
+    this.match(Tipo.IDENTIFICADOR);
+    this.AD();
+    this.match(Tipo.PARENTESIS_CIERRE);
+    this.match(Tipo.LLAVE_APERTURA);
+    this.INST_REP();
+    this.match(Tipo.LLAVE_CIERRE);
+  }
+
+  AD()
+  {
+    if (this.actual.Tipo === Tipo.SIGNO_MAS)
+    {
+      this.match(Tipo.SIGNO_MAS);
+      this.match(Tipo.SIGNO_MAS);
+    }
+    else
+    {
+      this.match(Tipo.SIGNO_MENOS);
+      this.match(Tipo.SIGNO_MENOS);
+    }
+  }
+
+  WHILE()
+  {
+    this.match(Tipo.PARENTESIS_APERTURA);
+    this.CONDICION();
+    this.match(Tipo.PARENTESIS_CIERRE);
+    this.match(Tipo.LLAVE_APERTURA);
+    this.INST_REP();
+    this.match(Tipo.LLAVE_CIERRE);
+  }
+
+  DO_WHILE()
+  {
+    this.match(Tipo.LLAVE_APERTURA);
+    this.INSTRUCCIONES();
+    this.match(Tipo.LLAVE_CIERRE);
+    this.match(Tipo.RESERVADA_WHILE);
+    this.match(Tipo.PARENTESIS_APERTURA);
+    this.CONDICION();
+    this.match(Tipo.PARENTESIS_CIERRE);
+    this.match(Tipo.PUNTO_Y_COMA);
+  }
+
+  IMPRIMIR()
+  {
+    this.match(Tipo.PARENTESIS_APERTURA);
+    this.IMPRESION();
+    this.match(Tipo.PARENTESIS_CIERRE);
+    this.match(Tipo.PUNTO_Y_COMA);
+  }
+
+  IMPRESION()
+  {
+    if (this.actual.Tipo === Tipo.IDENTIFICADOR)
+    {
+      this.match(Tipo.IDENTIFICADOR);
+      this.IMPRESION_P();
+    }
+    else if (this.actual.Tipo === Tipo.CADENA)
+    {
+      this.match(Tipo.CADENA);
+      this.IMPRESION_P();
+    }
+    else
+    {
+      this.match(Tipo.HTML);
+      this.IMPRESION_P();
+    }
+  }
+
+  IMPRESION_P()
+  {
+    if (this.actual.Tipo === Tipo.SIGNO_MAS)
+    {
+      this.match(Tipo.SIGNO_MAS);
+      this.IMPRESION();
+    }
+    else
+    {
+      // EPSILON
+    }
+  }
+
+  INST_REP()
+  {
+    if (this.actual.Tipo === Tipo.RESERVADA_BREAK)
+    {
+      this.match(Tipo.RESERVADA_BREAK);
+      this.match(Tipo.PUNTO_Y_COMA);
+    }
+    else if (this.actual.Tipo === Tipo.CONTINUE)
+    {
+      this.match(Tipo.CONTINUE);
+      this.match(Tipo.PUNTO_Y_COMA);
+    }
+    else
+    {
+      this.INSTRUCCIONES();
+    }
   }
 }
