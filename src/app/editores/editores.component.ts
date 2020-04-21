@@ -1817,7 +1817,7 @@ export class EditoresComponent implements AfterViewInit {
       this.match(Tipo.LLAVE_CIERRE);
       this.python += '\n';
       this.python += this.identacion + 'if __name__ = \"__main__\":\n';
-      this.python += this.identacion + '\tmain()';
+      this.python += this.identacion + '\tmain()\n';
     }
     else
     {
