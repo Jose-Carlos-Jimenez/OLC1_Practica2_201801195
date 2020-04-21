@@ -1282,7 +1282,7 @@ export class EditoresComponent implements AfterViewInit {
       this.match(Tipo.RETURN);
       if (this.actual.GetTipoString() !== 'Punto y coma')
       {
-        this.EXPRESION();
+        this.EXPRESION(); // Expresion
       }
       this.match(Tipo.PUNTO_Y_COMA);
       this.python += '\n';
