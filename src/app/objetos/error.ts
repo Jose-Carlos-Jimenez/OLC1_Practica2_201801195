@@ -4,7 +4,7 @@ export class Error
   row: number;
   column: number;
   type: string;
-  constructor(mensaje: string, fila: number, columna: number)
+  constructor(mensaje: string, fila: number, columna: number, tipo: number)
   {
     this.row = fila;
     this.column = columna;

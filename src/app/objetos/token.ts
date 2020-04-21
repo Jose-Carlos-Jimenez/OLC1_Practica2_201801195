@@ -89,7 +89,7 @@ export class Token
           case Tipo.PUNTO_Y_COMA:
             return 'Punto y coma';
           case Tipo.RESERVADA_BOOL:
-            return 'Tipo de dato';
+            return 'bool';
           case Tipo.RESERVADA_BREAK:
             return 'Reservada break';
           case Tipo.RESERVADA_CASE:
@@ -103,7 +103,7 @@ export class Token
           case Tipo.RESERVADA_DO:
             return 'Reservada do';
           case Tipo.RESERVADA_DOUBLE:
-            return 'Tipo de dato';
+            return 'double';
           case Tipo.RESERVADA_ELSE:
             return 'Reservada else';
           case Tipo.RESERVADA_FOR:
@@ -111,13 +111,13 @@ export class Token
           case Tipo.RESERVADA_IF:
             return 'Reservada if';
           case Tipo.RESERVADA_INT:
-            return 'Tipo de dato';
+            return 'int';
           case Tipo.RESERVADA_MAIN:
             return 'Reservada main';
           case Tipo.RESERVADA_NEW:
             return 'Reservada new';
           case Tipo.RESERVADA_STRING:
-            return 'Tipo de dato';
+            return 'string';
           case Tipo.RESERVADA_SWITCH:
             return 'Reservada switch';
           case Tipo.RESERVADA_VOID:
@@ -139,7 +139,7 @@ export class Token
           case Tipo.ULTIMO:
             return 'End of';
           case Tipo.VALOR_CHAR:
-            return 'Tipo de dato';
+            return 'char';
           default:
               return 'Desconocido';
         }

@@ -57,10 +57,11 @@
     </mat-tab-group>
   </div>
 </div>
+<br><br>
 <div class="row justify-content-center">
   <div class="col">
     <div class="row justify-content-center">
-      <button mat-fab color="warn" (click)="analisis()">
+      <button mat-fab color="medium" (click)="analisis()">
         <mat-icon>
           code
         </mat-icon>
@@ -74,16 +75,37 @@
       </button>
       &nbsp;
       &nbsp;
-      <button mat-fab >
+      <button mat-fab mat-fab class="btn btn-success" (click)="guardarHtml()">
         <mat-icon>
-          cloud_download
+          code
         </mat-icon>
       </button>
       &nbsp;
       &nbsp;
-      <button mat-fab color="success" type="button">
+      <button mat-fab color="success" type="button" (click)="guardarJson()">
         <mat-icon>
-          donut_small
+          developer_mode
+        </mat-icon>
+      </button>
+      &nbsp;
+      &nbsp;
+      <button mat-fab class="btn btn-info" type="button" (click)="guardarPython()">
+        <mat-icon>
+          vpn_key
+        </mat-icon>
+      </button>
+      &nbsp;
+      &nbsp;
+      <button mat-fab color="primary" type="button" (click)="tokens()">
+        <mat-icon>
+          extension
+        </mat-icon>
+      </button>
+      &nbsp;
+      &nbsp;
+      <button mat-fab color="warn" type="button" (click)="errores()">
+        <mat-icon>
+          error
         </mat-icon>
       </button>
     </div>

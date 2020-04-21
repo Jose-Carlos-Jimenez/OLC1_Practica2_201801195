@@ -15,7 +15,7 @@ import { Token, Tipo } from '../objetos/token';
 import { Variable } from '../objetos/variable';
 import { Error } from '../objetos/error';
 import { saveAs } from 'file-saver';
-import { THIS_EXPR } from '@angular/compiler/src/output/output_ast';
+import { stringify } from 'querystring';
 
 const THEME = 'ace/theme/xcode';
 const THEME2 = 'ace/theme/terminal';
@@ -57,11 +57,23 @@ export class EditoresComponent implements AfterViewInit {
   errorSintactico = false;
   sintacticoFlag = false;
   exito = false;
+  tipo: string;
   jsonErrorArray: Array<Error>;
   variables: Array<Variable>;
+  identificadores: Array<string>;
+  expresion: string;
   html: string;
+  python: string;
   actual: Token;
+  tabsCount: number;
+  identacion: string;
   numeroToken: number;
+  caseValue: string;
+  varFor: string;
+  valorInicialFor: string;
+  valorFinalFor: string;
+  decrementoFor: string;
+  repeticion: boolean;
 
   constructor() { }
 
@@ -109,8 +121,8 @@ export class EditoresComponent implements AfterViewInit {
   {
     const basicEditorOptions: Partial<ace.Ace.EditorOptions> = {
         highlightActiveLine: true,
-        minLines: 14,
-        maxLines: 14,
+        minLines: 18,
+        maxLines: 18,
     };
 
     const extraEditorOptions = {
@@ -123,6 +135,66 @@ export class EditoresComponent implements AfterViewInit {
   {
     const blob = new Blob([this.Receptor.getValue()], {type: 'text/plain;charset=utf-8'});
     saveAs(blob, this.document.nombre + '.cs');
+  }
+
+  guardarHtml()
+  {
+    const blob = new Blob([this.HtmlEditor.getValue()], {type: 'text/plain;charset=utf-8'});
+    saveAs(blob, 'doc.html');
+  }
+
+  guardarJson()
+  {
+    const blob = new Blob([this.JsonEditor.getValue()], {type: 'text/plain;charset=utf-8'});
+    saveAs(blob, 'doc.json');
+  }
+
+  guardarPython()
+  {
+    const blob = new Blob([this.Emisor.getValue()], {type: 'text/plain;charset=utf-8'});
+    saveAs(blob, 'doc.py');
+  }
+
+  errores()
+  {
+    if (this.errorLexico || this.errorSintactico)
+    {
+      let html: string;
+      let contador = 1;
+      html = '<html>\n<head>\n<title>ERRORES</title>\n</head>\n<body style="background-image: url(ImagenesProyecto/fondodePantalla.jpg)">' +
+            '\n<Table border=1 width=100% >\n<Tr bgcolor = blue; style=font-family:verdana>' +
+            '<Td>#</Td> <Td>TIPO</Td> <Td>DESCRIPCIÓN</Td> <Td>FILA</Td> <Td>COLUMNA</Td> </Tr>\n';
+
+      this.jsonErrorArray.forEach( token => {
+        html = html + '<Tr><Td>' + contador +
+        '</Td><Td>' + token.type + '</Td><Td>' + token.text +
+        '</Td><Td>' + token.row + '</Td><Td>' + token.column + '</Td>\n';
+        contador++;
+      });
+      html += '</Table>\n</body>\n</html>';
+      const blob = new Blob([html], {type: 'text/plain;charset=utf-8'});
+      saveAs(blob, 'errores.html');
+    }
+  }
+
+  tokens()
+  {
+    let html: string;
+    let contador = 1;
+    html = '<html>\n<head>\n<title>ERRORES</title>\n</head>\n<body>' +
+          '\n<Table border=1 width=100% >\n<Tr bgcolor = blue; style=font-family:verdana>' +
+          '<Td>#</Td> <Td>LEXEMA</Td><Td>TIPO</Td> <Td>FILA</Td> <Td>COLUMNA</Td> </Tr>\n';
+
+    this.flujoDeTokens.forEach( token => {
+      html = html + '<Tr><Td>' + contador +
+      '</Td><Td>' + token.lexema + '</Td><Td>' + token.GetTipoString() + '</Td><Td>' +
+      token.fila +
+      '</Td><Td>' + token.columna + '</Td>\n';
+      contador++;
+    });
+    html += '</Table>\n</body>\n</html>';
+    const blob = new Blob([html], {type: 'text/plain;charset=utf-8'});
+    saveAs(blob, 'tokens.html');
   }
 
   /*AREA DE ANALISIS LÉXICO */
@@ -676,7 +748,8 @@ export class EditoresComponent implements AfterViewInit {
       const nuevo = new Token(tipo, this.auxLex, this.fila, this.columna, 'Error léxico en la fila ' + this.fila, true);
       this.flujoDeTokens.push(nuevo);
       this.errorLexico = true;
-      this.jsonErrorArray.push(new Error('Error ' + this.auxLex + ' en columna ' + this.columna, this.fila - 1, this.columna));
+      this.jsonErrorArray.push(new Error('ERROR: Caracter desconocido ->' + this.auxLex +
+      '<- en fila ' + this.fila, this.fila - 1, this.columna, 1));
     }
     else
     {
@@ -721,8 +794,10 @@ export class EditoresComponent implements AfterViewInit {
     this.errorLexico = false;
     this.errorSintactico = false;
     this.sintacticoFlag = false;
+    this.python = '';
+    this.identacion = '';
+    this.tabsCount = -1;
     this.scan(this.Receptor.getValue());
-    // console.log(this.flujoDeTokens);
     this.obtenerVariables();
     this.getHTML();
     this.parse();
@@ -818,6 +893,27 @@ export class EditoresComponent implements AfterViewInit {
     this.HtmlEditor.setValue(htmlText);
     this.editorBeautify.beautify(this.HtmlEditor.session );
     this.getJson(htmlText);
+  }
+
+  /* IDENTACIÓN */
+  aumentarIdentacion()
+  {
+    ++this.tabsCount;
+    this.identacion = '';
+    for (let i = 0; i < this.tabsCount ; i++)
+    {
+      this.identacion += '\t';
+    }
+  }
+
+  disminuirIdentacion()
+  {
+    --this.tabsCount;
+    this.identacion = '';
+    for (let i = 0; i < this.tabsCount ; i++)
+    {
+      this.identacion += '\t';
+    }
   }
 
   getJson(html: string)
@@ -930,6 +1026,9 @@ export class EditoresComponent implements AfterViewInit {
       this.numeroToken = 0;
       this.actual = this.flujoDeTokens[this.numeroToken];
       this.INICIO(); // Simbolo inicial de la gramática
+      this.Emisor.setValue(this.python);
+      console.log(this.flujoDeTokens);
+      // this.editorBeautify.beautify(this.Emisor.session);
   }
 
   /* MÉTODO PARA VERIFICAR QUE SEA EL TOKEN ESPERADO */
@@ -940,6 +1039,23 @@ export class EditoresComponent implements AfterViewInit {
     {
       while (this.actual.Tipo === Tipo.COMENTARIO_BLOQUE || this.actual.Tipo === Tipo.COMENTARIO_LINEA)
       {
+        if (this.actual.Tipo === Tipo.COMENTARIO_BLOQUE)
+        {
+          let auxString;
+          auxString = this.actual.lexema.replace(/\/\*/, '\'\'\'');
+          auxString = auxString.replace(/\*\//, '\'\'\'');
+          console.log(auxString);
+          this.python += '\n' + this.identacion;
+          this.python += auxString;
+          this.python += '\n';
+        }
+        else
+        {
+          let auxString;
+          auxString = this.actual.lexema.replace(/\/\//, '#');
+          console.log(auxString);
+          this.python += '\n' + this.identacion + auxString;
+        }
         this.numeroToken++;
         this.actual = this.flujoDeTokens[this.numeroToken];
       }
@@ -965,7 +1081,7 @@ export class EditoresComponent implements AfterViewInit {
           aux.Tipo = tipo;
           /* CREANDO MARCADOR PARA EL ERROR EN EL EDITOR DE TEXTO */
           this.jsonErrorArray.push(new Error( 'Se esperaba [' + aux.GetTipoString() +
-          '] y se obtuvo [' + this.actual.GetTipoString() + ']' , this.actual.fila - 1, this.columna));
+          '] y se obtuvo [' + this.actual.GetTipoString() + ']' , this.actual.fila - 1, this.columna, 2));
 
           /* MARCANDO EL ERROR */
 
@@ -988,15 +1104,38 @@ export class EditoresComponent implements AfterViewInit {
         {
           this.numeroToken++;
           this.actual = this.flujoDeTokens[this.numeroToken];
+          if (Tipo.LLAVE_APERTURA === tipo)
+          {
+            this.aumentarIdentacion();
+          }
+          else if (Tipo.LLAVE_CIERRE === tipo)
+          {
+            this.disminuirIdentacion();
+          }
         }
       }
     }
-
-    /* SALTANDO COMENTARIOS */
     if (this.actual.Tipo === Tipo.COMENTARIO_BLOQUE || this.actual.Tipo === Tipo.COMENTARIO_LINEA)
     {
       while (this.actual.Tipo === Tipo.COMENTARIO_BLOQUE || this.actual.Tipo === Tipo.COMENTARIO_LINEA)
       {
+        if (this.actual.Tipo === Tipo.COMENTARIO_BLOQUE)
+        {
+          let auxString;
+          auxString = this.actual.lexema.replace(/\/\*/, '\'\'\'');
+          auxString = auxString.replace(/\*\//, '\'\'\'');
+          console.log(auxString);
+          this.python += '\n' + this.identacion;
+          this.python += auxString;
+          this.python += '\n';
+        }
+        else
+        {
+          let auxString;
+          auxString = this.actual.lexema.replace(/\/\//, '#');
+          console.log(auxString);
+          this.python += '\n' + this.identacion + auxString;
+        }
         this.numeroToken++;
         this.actual = this.flujoDeTokens[this.numeroToken];
       }
@@ -1027,6 +1166,7 @@ export class EditoresComponent implements AfterViewInit {
     this.match(Tipo.LLAVE_APERTURA);
     this.INST_GENERALES();
     this.match(Tipo.LLAVE_CIERRE);
+    this.python += '\n';
   }
 
   INST_GENERALES()
@@ -1040,6 +1180,8 @@ export class EditoresComponent implements AfterViewInit {
     else if (this.esTipo())
     {
       this.TIPO();
+      this.identificadores = new Array<string>();
+      this.identificadores.push(this.actual.lexema);
       this.match(Tipo.IDENTIFICADOR);
       this.INST_GENERALES_P();
       this.INST_GENERALES();
@@ -1054,18 +1196,23 @@ export class EditoresComponent implements AfterViewInit {
   {
     if (this.actual.Tipo === Tipo.PARENTESIS_APERTURA)
     {
+
+      this.python += 'def ' + this.identificadores[0] + this.actual.lexema;
       this.match(Tipo.PARENTESIS_APERTURA);
       this.PARAMETROS();
+      this.python += this.actual.lexema + ':';
       this.match(Tipo.PARENTESIS_CIERRE);
       this.match(Tipo.LLAVE_APERTURA);
+      this.python += '\n';
       this.INST_FUNCIONES();
       this.match(Tipo.LLAVE_CIERRE);
+      this.python += '\n';
       this.INST_GENERALES();
     }
     else
     {
       this.DECLARACION();
-      this.INSTRUCCIONES();
+      this.INST_GENERALES();
     }
 
   }
@@ -1075,12 +1222,22 @@ export class EditoresComponent implements AfterViewInit {
     if (this.esTipo())
     {
       this.TIPO();
+      this.identificadores = new Array<string>();
+      this.identificadores.push(this.actual.lexema);
       this.match(Tipo.IDENTIFICADOR);
       this.DECLARACION();
       this.INSTRUCCIONES();
     }
+    else if (this.actual.Tipo === Tipo.RESERVADA_FOR)
+    {
+      this.python += this.identacion + 'for';
+      this.match(Tipo.RESERVADA_FOR);
+      this.FOR();
+      this.INST_REP();
+    }
     else if (this.actual.Tipo === Tipo.RESERVADA_IF)
     {
+      this.python += this.identacion + this.actual.lexema;
       this.match(Tipo.RESERVADA_IF);
       this.IF();
       this.INSTRUCCIONES();
@@ -1088,29 +1245,34 @@ export class EditoresComponent implements AfterViewInit {
     else if (this.actual.Tipo === Tipo.RESERVADA_SWITCH)
     {
       this.match(Tipo.RESERVADA_SWITCH);
+      this.python += this.identacion + 'def switch ';
       this.SWITCH();
       this.INSTRUCCIONES();
     }
     else if (this.actual.Tipo === Tipo.RESERVADA_WHILE)
     {
+      this.python += this.identacion + this.actual.lexema + ' ';
       this.match(Tipo.RESERVADA_WHILE);
       this.WHILE();
-      this.INSTRUCCIONES();
+      this.INST_REP();
     }
     else if (this.actual.Tipo === Tipo.RESERVADA_DO)
     {
       this.match(Tipo.RESERVADA_DO);
+      this.python += this.identacion + 'while True:';
       this.DO_WHILE();
-      this.INSTRUCCIONES();
+      this.INST_REP();
     }
     else if (this.actual.Tipo === Tipo.FUNCION_WRITELINE)
     {
       this.match(Tipo.FUNCION_WRITELINE);
+      this.python += this.identacion + 'print(';
       this.IMPRIMIR();
       this.INSTRUCCIONES();
     }
     else if (this.actual.Tipo === Tipo.IDENTIFICADOR)
     {
+      this.python += this.identacion + this.actual.lexema;
       this.match(Tipo.IDENTIFICADOR);
       this.ASIGNACION();
       this.INSTRUCCIONES();
@@ -1123,6 +1285,7 @@ export class EditoresComponent implements AfterViewInit {
         this.EXPRESION();
       }
       this.match(Tipo.PUNTO_Y_COMA);
+      this.python += '\n';
       this.INSTRUCCIONES();
     }
     else
@@ -1136,18 +1299,28 @@ export class EditoresComponent implements AfterViewInit {
     if (this.actual.Tipo === Tipo.COMA)
     {
       this.match(Tipo.COMA);
+      this.identificadores.push(this.actual.lexema);
       this.match(Tipo.IDENTIFICADOR);
       this.DECLARACION_P();
     }
     else if (this.actual.Tipo === Tipo.PUNTO_Y_COMA)
     {
+      this.identificadores.forEach(element => {
+        this.python += this.identacion + element + ' = ' + this.tipo + '\n';
+      });
       this.match(Tipo.PUNTO_Y_COMA);
+      this.python += '\n';
     }
     else
     {
       this.match(Tipo.IGUAL);
+      this.expresion = '';
       this.EXPRESION();
+      this.identificadores.forEach(element => {
+        this.python += this.identacion + element + ' = ' + this.expresion;
+      });
       this.match(Tipo.PUNTO_Y_COMA);
+      this.python += '\n';
     }
   }
 
@@ -1155,9 +1328,13 @@ export class EditoresComponent implements AfterViewInit {
   {
     if (this.actual.Tipo === Tipo.RETURN)
     {
+      this.python += this.identacion + this.actual.lexema + ' ';
       this.match(Tipo.RETURN);
+      this.expresion = '';
       this.EXPRESION();
+      this.python += this.expresion;
       this.match(Tipo.PUNTO_Y_COMA);
+      this.python += '\n';
     }
     else
     {
@@ -1170,18 +1347,28 @@ export class EditoresComponent implements AfterViewInit {
     if (this.actual.Tipo === Tipo.COMA)
     {
       this.match(Tipo.COMA);
+      this.identificadores.push(this.actual.lexema);
       this.match(Tipo.IDENTIFICADOR);
       this.DECLARACION_P();
     }
     else if ( this.actual.Tipo === Tipo.IGUAL)
     {
       this.match(Tipo.IGUAL);
+      this.expresion = '';
       this.EXPRESION();
+      this.identificadores.forEach(element => {
+        this.python += this.identacion + element + ' = ' + this.expresion + '\n';
+      });
       this.match(Tipo.PUNTO_Y_COMA);
+      this.python += '\n';
     }
     else
     {
       this.match(Tipo.PUNTO_Y_COMA);
+      this.identificadores.forEach(element => {
+        this.python += this.identacion + element + ' = ' + this.tipo + '\n' ;
+      });
+      this.python += '\n';
     }
   }
 
@@ -1189,23 +1376,33 @@ export class EditoresComponent implements AfterViewInit {
   {
     if (this.actual.Tipo === Tipo.NOT)
     {
+      this.python += 'not ';
       this.match(Tipo.NOT);
+      this.expresion = '';
       this.EXPRESION();
+      this.python += this.expresion;
       this.CONDICION_P();
       this.CONDICION_PLUS();
     }
     else if (this.actual.Tipo === Tipo.TRUE)
     {
+      this.python += 'True';
       this.match(Tipo.TRUE);
+      this.CONDICION_P();
+      this.CONDICION_PLUS();
     }
     else if (this.actual.Tipo === Tipo.FALSE)
     {
+      this.python += 'False';
       this.match(Tipo.FALSE);
+      this.CONDICION_P();
+      this.CONDICION_PLUS();
     }
-
     else
     {
+      this.expresion = '';
       this.EXPRESION();
+      this.python += this.expresion;
       this.CONDICION_P();
       this.CONDICION_PLUS();
     }
@@ -1228,26 +1425,32 @@ export class EditoresComponent implements AfterViewInit {
   {
     if (this.actual.Tipo === Tipo.IGUAL_QUE)
     {
+      this.python += this.actual.lexema;
       this.match(Tipo.IGUAL_QUE);
     }
     else if (this.actual.Tipo === Tipo.DIFERENTE)
     {
+      this.python += this.actual.lexema;
       this.match(Tipo.DIFERENTE);
     }
     else if (this.actual.Tipo === Tipo.MAYOR_QUE)
     {
+      this.python += this.actual.lexema;
       this.match(Tipo.MAYOR_QUE);
     }
     else if (this.actual.Tipo === Tipo.MENOR_QUE)
     {
+      this.python += this.actual.lexema;
       this.match(Tipo.MENOR_QUE);
     }
     else if (this.actual.Tipo === Tipo.MAYOR_IGUAL)
     {
+      this.python += this.actual.lexema;
       this.match(Tipo.MAYOR_IGUAL);
     }
     else
     {
+      this.python += this.actual.lexema;
       this.match(Tipo.MENOR_IGUAL);
     }
   }
@@ -1256,11 +1459,15 @@ export class EditoresComponent implements AfterViewInit {
   {
     if (this.actual.Tipo === Tipo.AND)
     {
+      this.python += ' and ';
       this.match(Tipo.AND);
+      this.CONDICION();
     }
     else if ( this.actual.Tipo === Tipo.OR_LOGICO)
     {
+      this.python += ' or ';
       this.match(Tipo.OR_LOGICO);
+      this.CONDICION();
     }
     else
     {
@@ -1273,49 +1480,62 @@ export class EditoresComponent implements AfterViewInit {
     if (this.actual.Tipo === Tipo.RESERVADA_INT)
     {
       this.match(Tipo.RESERVADA_INT);
+      this.tipo = '0';
     }
     else if (this.actual.Tipo === Tipo.RESERVADA_BOOL)
     {
       this.match(Tipo.RESERVADA_BOOL);
+      this.tipo = 'true';
     }
     else if (this.actual.Tipo === Tipo.RESERVADA_STRING)
     {
       this.match(Tipo.RESERVADA_STRING);
+      this.tipo = '\'\'';
     }
     else if (this.actual.Tipo === Tipo.RESERVADA_CHAR)
     {
       this.match(Tipo.RESERVADA_CHAR);
+      this.tipo = '\'\'';
     }
     else
     {
       this.match(Tipo.RESERVADA_DOUBLE);
+      this.tipo = '0.0';
     }
   }
 
   VALOR()
   {
+    this.caseValue = '';
+    this.caseValue = this.actual.lexema;
     if (this.actual.Tipo === Tipo.VALOR_CHAR)
     {
+      this.expresion += this.actual.lexema;
       this.match(Tipo.VALOR_CHAR);
     }
     else if (this.actual.Tipo === Tipo.TRUE)
     {
+      this.expresion += this.actual.lexema;
       this.match(Tipo.TRUE);
     }
     else if (this.actual.Tipo === Tipo.FALSE)
     {
+      this.expresion += this.actual.lexema;
       this.match(Tipo.FALSE);
     }
     else if (this.actual.Tipo === Tipo.CADENA)
     {
+      this.expresion += this.actual.lexema;
       this.match(Tipo.CADENA);
     }
     else if (this.actual.Tipo === Tipo.NUMERO_ENTERO)
     {
+      this.expresion += this.actual.lexema;
       this.match(Tipo.NUMERO_ENTERO);
     }
     else
     {
+      this.expresion += this.actual.lexema;
       this.match(Tipo.NUMERO_DECIMAL);
     }
   }
@@ -1324,13 +1544,40 @@ export class EditoresComponent implements AfterViewInit {
   {
     if (this.actual.Tipo === Tipo.IGUAL)
     {
+      this.python += this.actual.lexema;
       this.match(Tipo.IGUAL);
+      this.expresion = '';
       this.EXPRESION();
+      this.python += this.expresion;
       this.match(Tipo.PUNTO_Y_COMA);
+      this.python += '\n';
+    }
+    else if (this.actual.Tipo === Tipo.SIGNO_MAS)
+    {
+      this.python += '++\n';
+      this.match(Tipo.SIGNO_MAS);
+      this.match(Tipo.SIGNO_MAS);
+      this.match(Tipo.PUNTO_Y_COMA);
+    }
+    else if (this.actual.Tipo === Tipo.SIGNO_MENOS)
+    {
+      this.python += '--\n';
+      this.match(Tipo.SIGNO_MENOS);
+      this.match(Tipo.SIGNO_MENOS);
+      this.match(Tipo.PUNTO_Y_COMA);
+    }
+    else if (this.actual.Tipo === Tipo.PARENTESIS_APERTURA)
+    {
+      this.expresion = '';
+      this.FUNC();
+      this.python += this.expresion;
+      this.match(Tipo.PUNTO_Y_COMA);
+      this.python += '\n';
     }
     else
     {
       this.match(Tipo.PUNTO_Y_COMA);
+      this.python += '\n';
       // EPSILON
     }
   }
@@ -1339,6 +1586,7 @@ export class EditoresComponent implements AfterViewInit {
   {
     if (this.actual.Tipo === Tipo.NOT)
     {
+      this.expresion += 'not ';
       this.match(Tipo.NOT);
       this.TERMINOS();
       this.EXPRESION_P();
@@ -1354,12 +1602,14 @@ export class EditoresComponent implements AfterViewInit {
   {
     if (this.actual.Tipo === Tipo.SIGNO_MENOS)
     {
+      this.expresion += this.actual.lexema;
       this.match(Tipo.SIGNO_MENOS);
       this.TERMINOS();
       this.EXPRESION_P();
     }
     else if (this.actual.Tipo === Tipo.SIGNO_MAS)
     {
+      this.expresion += this.actual.lexema;
       this.match(Tipo.SIGNO_MAS);
       this.TERMINOS();
       this.EXPRESION_P();
@@ -1380,60 +1630,70 @@ export class EditoresComponent implements AfterViewInit {
   {
     if (this.actual.Tipo === Tipo.SIGNO_MULTIPLICACION)
     {
+      this.expresion += this.actual.lexema;
       this.match(Tipo.SIGNO_MULTIPLICACION);
       this.FACTORES();
       this.TERMINOS_P();
     }
     else if ( this.actual.Tipo === Tipo.SIGNO_DIVISION)
     {
+      this.expresion += this.actual.lexema;
       this.match(Tipo.SIGNO_DIVISION);
       this.FACTORES();
       this.TERMINOS_P();
     }
     else if ( this.actual.Tipo === Tipo.AND)
     {
+      this.expresion += ' and ';
       this.match(Tipo.AND);
       this.FACTORES();
       this.TERMINOS_P();
     }
     else if ( this.actual.Tipo === Tipo.OR_LOGICO)
     {
+      this.expresion += ' or ';
       this.match(Tipo.OR_LOGICO);
       this.FACTORES();
       this.TERMINOS_P();
     }
     else if ( this.actual.Tipo === Tipo.IGUAL_QUE)
     {
+      this.expresion += this.actual.lexema;
       this.match(Tipo.IGUAL_QUE);
       this.FACTORES();
       this.TERMINOS_P();
     }
     else if ( this.actual.Tipo === Tipo.MAYOR_QUE)
     {
+      this.expresion += this.actual.lexema;
       this.match(Tipo.MAYOR_QUE);
       this.FACTORES();
       this.TERMINOS_P();
     }
     else if ( this.actual.Tipo === Tipo.MENOR_QUE)
     {
+      this.expresion += this.actual.lexema;
       this.match(Tipo.MENOR_QUE);
       this.FACTORES();
       this.TERMINOS_P();
     }
     else if ( this.actual.Tipo === Tipo.MAYOR_IGUAL)
     {
+      this.expresion += this.actual.lexema;
       this.match(Tipo.MAYOR_IGUAL);
       this.FACTORES();
       this.TERMINOS_P();
     }
     else if ( this.actual.Tipo === Tipo.MENOR_IGUAL)
     {
+      this.expresion += this.actual.lexema;
       this.match(Tipo.MENOR_IGUAL);
       this.FACTORES();
       this.TERMINOS_P();
     }
     else if ( this.actual.Tipo === Tipo.DIFERENTE)
     {
+      this.expresion += this.actual.lexema;
       this.match(Tipo.DIFERENTE);
       this.FACTORES();
       this.TERMINOS_P();
@@ -1449,42 +1709,59 @@ export class EditoresComponent implements AfterViewInit {
   {
     if (this.actual.Tipo === Tipo.PARENTESIS_APERTURA)
     {
+      this.expresion += this.actual.lexema;
       this.match(Tipo.PARENTESIS_APERTURA);
       this.EXPRESION();
+      this.expresion += this.actual.lexema;
       this.match(Tipo.PARENTESIS_CIERRE);
     }
     else if (this.actual.Tipo === Tipo.IDENTIFICADOR)
     {
+      this.expresion += this.actual.lexema;
+      this.valorFinalFor = this.actual.lexema;
       this.match(Tipo.IDENTIFICADOR);
       this.FUNC();
     }
     else if (this.actual.Tipo === Tipo.NOT)
     {
+      this.expresion += 'not ';
       this.match(Tipo.NOT);
-      this.match(Tipo.IDENTIFICADOR);
+      this.EXPRESION();
     }
     else if (this.actual.Tipo === Tipo.CADENA)
     {
+      this.expresion += this.actual.lexema;
+      this.valorFinalFor = this.actual.lexema;
       this.match(Tipo.CADENA);
     }
     else if (this.actual.Tipo === Tipo.TRUE)
     {
+      this.expresion += 'True';
+      this.valorFinalFor = this.actual.lexema;
       this.match(Tipo.TRUE);
     }
     else if (this.actual.Tipo === Tipo.FALSE)
     {
+      this.expresion += 'False';
+      this.valorFinalFor = this.actual.lexema;
       this.match(Tipo.FALSE);
     }
     else if (this.actual.Tipo === Tipo.VALOR_CHAR)
     {
+      this.expresion += this.actual.lexema;
+      this.valorFinalFor = this.actual.lexema;
       this.match(Tipo.VALOR_CHAR);
     }
     else if (this.actual.Tipo === Tipo.NUMERO_ENTERO)
     {
+      this.expresion += this.actual.lexema;
+      this.valorFinalFor = this.actual.lexema;
       this.match(Tipo.NUMERO_ENTERO);
     }
     else
     {
+      this.expresion += this.actual.lexema;
+      this.valorFinalFor = this.actual.lexema;
       this.match(Tipo.NUMERO_DECIMAL);
     }
   }
@@ -1493,8 +1770,10 @@ export class EditoresComponent implements AfterViewInit {
   {
     if (this.actual.Tipo === Tipo.PARENTESIS_APERTURA)
     {
+      this.expresion += this.actual.lexema;
       this.match(Tipo.PARENTESIS_APERTURA);
       this.SENDPAR();
+      this.expresion += this.actual.lexema;
       this.match(Tipo.PARENTESIS_CIERRE);
     }
     else
@@ -1513,13 +1792,15 @@ export class EditoresComponent implements AfterViewInit {
     }
     else if (this.actual.Tipo === Tipo.COMA)
     {
+      this.expresion += this.actual.lexema;
       this.match(Tipo.COMA);
       this.EXPRESION();
       this.SENDPAR();
     }
-    else
+    else if (this.actual.Tipo !== Tipo.PARENTESIS_CIERRE)
     {
-      // EPSILON
+      this.EXPRESION();
+      this.SENDPAR();
     }
   }
 
@@ -1528,22 +1809,33 @@ export class EditoresComponent implements AfterViewInit {
     if (this.actual.Tipo === Tipo.RESERVADA_MAIN)
     {
       this.match(Tipo.RESERVADA_MAIN);
+      this.python += 'def Main():';
       this.match(Tipo.PARENTESIS_APERTURA);
       this.match(Tipo.PARENTESIS_CIERRE);
       this.match(Tipo.LLAVE_APERTURA);
       this.INSTRUCCIONES();
       this.match(Tipo.LLAVE_CIERRE);
+      this.python += '\n';
     }
     else
     {
+      this.python += this.identacion + 'def ' +  this.actual.lexema;
       this.match(Tipo.IDENTIFICADOR);
+      this.python += this.actual.lexema;
       this.match(Tipo.PARENTESIS_APERTURA);
       this.PARAMETROS();
+      this.python += this.actual.lexema + ':\n';
       this.match(Tipo.PARENTESIS_CIERRE);
       this.match(Tipo.LLAVE_APERTURA);
       this.INST_FUNCIONES();
       this.match(Tipo.LLAVE_CIERRE);
+      this.python += '\n';
     }
+  }
+
+  PARAMS_P()
+  {
+
   }
 
   PARAMETROS()
@@ -1551,6 +1843,7 @@ export class EditoresComponent implements AfterViewInit {
     if (this.esTipo())
     {
       this.TIPO();
+      this.python += this.actual.lexema;
       this.match(Tipo.IDENTIFICADOR);
       this.PARAMETROS_P();
     }
@@ -1564,8 +1857,10 @@ export class EditoresComponent implements AfterViewInit {
   {
     if (this.actual.Tipo === Tipo.COMA)
     {
+      this.python += this.actual.lexema;
       this.match(Tipo.COMA);
       this.TIPO();
+      this.python += this.actual.lexema;
       this.match(Tipo.IDENTIFICADOR);
       this.PARAMETROS_P();
     }
@@ -1574,11 +1869,15 @@ export class EditoresComponent implements AfterViewInit {
   IF()
   {
     this.match(Tipo.PARENTESIS_APERTURA);
+    this.python += ' ';
     this.CONDICION();
+    this.python += ':';
     this.match(Tipo.PARENTESIS_CIERRE);
     this.match(Tipo.LLAVE_APERTURA);
+    this.python += '\n';
     this.INSTRUCCIONES();
     this.match(Tipo.LLAVE_CIERRE);
+    this.python += '\n';
     this.ELSE();
   }
 
@@ -1599,41 +1898,61 @@ export class EditoresComponent implements AfterViewInit {
   {
     if (this.actual.Tipo === Tipo.RESERVADA_IF)
     {
+      this.python += this.identacion + 'elif ';
       this.match(Tipo.RESERVADA_IF);
       this.match(Tipo.PARENTESIS_APERTURA);
       this.CONDICION();
       this.match(Tipo.PARENTESIS_CIERRE);
+      this.python += ':';
       this.match(Tipo.LLAVE_APERTURA);
+      this.python += '\n';
       this.INSTRUCCIONES();
       this.match(Tipo.LLAVE_CIERRE);
+      this.python += '\n';
       this.ELSE();
     }
     else
     {
+      this.python += this.identacion + 'else:';
       this.match(Tipo.LLAVE_APERTURA);
+      this.python += '\n';
       this.INSTRUCCIONES();
       this.match(Tipo.LLAVE_CIERRE);
+      this.python += '\n';
     }
   }
 
   SWITCH()
   {
     this.match(Tipo.PARENTESIS_APERTURA);
-    this.match(Tipo.IDENTIFICADOR);
+    this.expresion = '';
+    this.EXPRESION();
+    this.python += '(case,' + this.expresion + '):';
+    this.aumentarIdentacion();
+    this.python += '\n' + this.identacion + 'switcher = {\n';
     this.match(Tipo.PARENTESIS_CIERRE);
     this.match(Tipo.LLAVE_APERTURA);
+    this.python += '\n';
     this.CASE();
     this.DEFAULT();
+    this.disminuirIdentacion();
+    this.python += this.identacion + '}';
     this.match(Tipo.LLAVE_CIERRE);
+    this.python += '\n';
   }
 
   CASE()
   {
     this.match(Tipo.RESERVADA_CASE);
-    this.VALOR();
+    this.expresion = '';
+    this.EXPRESION();
+    this.python += this.identacion + this.expresion + ':\t#CASE\n';
     this.match(Tipo.DOS_PUNTOS);
+    this.aumentarIdentacion();
     this.INSTRUCCIONES();
     this.BREAK();
+    this.python += this.identacion + ',\n';
+    this.disminuirIdentacion();
     this.CASE_P();
   }
 
@@ -1642,10 +1961,15 @@ export class EditoresComponent implements AfterViewInit {
     if (this.actual.Tipo === Tipo.RESERVADA_CASE)
     {
       this.match(Tipo.RESERVADA_CASE);
-      this.VALOR();
+      this.expresion = '';
+      this.EXPRESION();
+      this.python += this.identacion + this.expresion + ':\t#CASE\n';
       this.match(Tipo.DOS_PUNTOS);
+      this.aumentarIdentacion();
       this.INSTRUCCIONES();
       this.BREAK();
+      this.python += this.identacion + ',\n';
+      this.disminuirIdentacion();
       this.CASE_P();
     }
     else
@@ -1659,9 +1983,21 @@ export class EditoresComponent implements AfterViewInit {
     if (this.actual.Tipo === Tipo.RESERVADA_DEFAULT)
     {
       this.match(Tipo.RESERVADA_DEFAULT);
+      let r = '10000';
+      // tslint:disable-next-line: radix
+      if (parseInt(this.expresion))
+      {
+        // tslint:disable-next-line: radix
+        r = (parseInt(this.expresion) + 1).toString();
+      }
+      // tslint:disable-next-line: radix
+      this.python += this.identacion + r + ':\t#CASE\n';
       this.match(Tipo.DOS_PUNTOS);
+      this.aumentarIdentacion();
       this.INSTRUCCIONES();
       this.BREAK();
+      this.python += this.identacion + ',\n';
+      this.disminuirIdentacion();
     }
     else
     {
@@ -1675,6 +2011,7 @@ export class EditoresComponent implements AfterViewInit {
     {
       this.match(Tipo.RESERVADA_BREAK);
       this.match(Tipo.PUNTO_Y_COMA);
+      this.python += '\n';
     }
     else
     {
@@ -1686,17 +2023,34 @@ export class EditoresComponent implements AfterViewInit {
   {
     this.match(Tipo.PARENTESIS_APERTURA);
     this.TIPO();
+    this.varFor = this.actual.lexema;
     this.match(Tipo.IDENTIFICADOR);
     this.match(Tipo.IGUAL);
+    this.expresion = '';
+    this.EXPRESION();
+    this.valorInicialFor = this.expresion;
     this.match(Tipo.PUNTO_Y_COMA);
+    this.python += '\n';
+    this.valorFinalFor = '';
     this.CONDICION();
     this.match(Tipo.PUNTO_Y_COMA);
+    this.python += '\n';
     this.match(Tipo.IDENTIFICADOR);
     this.AD();
     this.match(Tipo.PARENTESIS_CIERRE);
+    while (this.python[this.python.length - 3] !== 'f' &&
+    this.python[this.python.length - 2] !== 'o' &&
+    this.python[this.python.length - 1] !== 'r')
+    {
+      this.python = this.python.slice(0, -1);
+    }
+    this.python += ' ' + this.varFor + ' in range (' + this.valorInicialFor + ',' + this.valorFinalFor
+    + this.decrementoFor + '):';
     this.match(Tipo.LLAVE_APERTURA);
+    this.python += '\n';
     this.INST_REP();
     this.match(Tipo.LLAVE_CIERRE);
+    this.python += '\n';
   }
 
   AD()
@@ -1705,11 +2059,13 @@ export class EditoresComponent implements AfterViewInit {
     {
       this.match(Tipo.SIGNO_MAS);
       this.match(Tipo.SIGNO_MAS);
+      this.decrementoFor = '';
     }
     else
     {
       this.match(Tipo.SIGNO_MENOS);
       this.match(Tipo.SIGNO_MENOS);
+      this.decrementoFor = ',-1';
     }
   }
 
@@ -1717,48 +2073,54 @@ export class EditoresComponent implements AfterViewInit {
   {
     this.match(Tipo.PARENTESIS_APERTURA);
     this.CONDICION();
+    this.python += ':';
     this.match(Tipo.PARENTESIS_CIERRE);
     this.match(Tipo.LLAVE_APERTURA);
+    this.python += '\n';
     this.INST_REP();
     this.match(Tipo.LLAVE_CIERRE);
+    this.python += '\n';
   }
 
   DO_WHILE()
   {
     this.match(Tipo.LLAVE_APERTURA);
+    this.python += '\n';
     this.INSTRUCCIONES();
     this.match(Tipo.LLAVE_CIERRE);
+    this.python += '\n';
     this.match(Tipo.RESERVADA_WHILE);
     this.match(Tipo.PARENTESIS_APERTURA);
+    this.python += this.identacion + '\tif(';
     this.CONDICION();
+    this.python += '):\n' + this.identacion + '\t\tbreak';
     this.match(Tipo.PARENTESIS_CIERRE);
     this.match(Tipo.PUNTO_Y_COMA);
+    this.python += '\n';
   }
 
   IMPRIMIR()
   {
     this.match(Tipo.PARENTESIS_APERTURA);
     this.IMPRESION();
+    this.python += ')\n';
     this.match(Tipo.PARENTESIS_CIERRE);
     this.match(Tipo.PUNTO_Y_COMA);
   }
 
   IMPRESION()
   {
-    if (this.actual.Tipo === Tipo.IDENTIFICADOR)
+    if (this.actual.Tipo === Tipo.HTML)
     {
-      this.match(Tipo.IDENTIFICADOR);
-      this.IMPRESION_P();
-    }
-    else if (this.actual.Tipo === Tipo.CADENA)
-    {
-      this.match(Tipo.CADENA);
+      this.python += this.actual.lexema;
+      this.match(Tipo.HTML);
       this.IMPRESION_P();
     }
     else
     {
-      this.match(Tipo.HTML);
-      this.IMPRESION_P();
+      this.expresion = '';
+      this.EXPRESION();
+      this.python += this.expresion;
     }
   }
 
@@ -1766,6 +2128,7 @@ export class EditoresComponent implements AfterViewInit {
   {
     if (this.actual.Tipo === Tipo.SIGNO_MAS)
     {
+      this.python += this.actual.lexema;
       this.match(Tipo.SIGNO_MAS);
       this.IMPRESION();
     }
@@ -1779,13 +2142,17 @@ export class EditoresComponent implements AfterViewInit {
   {
     if (this.actual.Tipo === Tipo.RESERVADA_BREAK)
     {
+      this.python += this.identacion + this.actual.lexema;
       this.match(Tipo.RESERVADA_BREAK);
       this.match(Tipo.PUNTO_Y_COMA);
+      this.python += '\n';
     }
     else if (this.actual.Tipo === Tipo.CONTINUE)
     {
+      this.python += this.identacion + this.actual.lexema;
       this.match(Tipo.CONTINUE);
       this.match(Tipo.PUNTO_Y_COMA);
+      this.python += '\n';
     }
     else
     {
